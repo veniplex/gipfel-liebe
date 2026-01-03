@@ -22,11 +22,11 @@
 - **Performance & Security**: Follow modern best practices (fast load times, secure data handling, semantic HTML).
 - **SvelteKit Native**: Prioritize Loaders, Actions, and API routes.
 - **Responsive Design**: Use TailwindCSS for responsive design.
-- **UI Components**: Use bits-ui components for all UI elements. See the documentation at [bits-ui.com](https://bits-ui.com/docs/llms.txt).
+- **UI Components**: Use daisy-ui components for all UI elements. See the documentation at [daisyui.com](https://daisyui.com/llms.txt).
 
 ## 3. UI & Styling
 
-- **bits-ui Primacy**: Use bits-ui components for all UI elements. Ref: [bits-ui.com](https://bits-ui.com/docs/llms.txt).
+- **daisy-ui Primacy**: Use daisy-ui components for all UI elements. Ref: [daisyui.com](https://daisyui.com/llms.txt).
 - **TailwindCSS**: Use TailwindCSS for custom styling.
 - **CSS Policy**: Plain CSS is strictly prohibited, except for custom styling which is not possible with TailwindCSS.
 - **Consistency**: Maintain a unified UI and UX.

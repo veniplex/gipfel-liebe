@@ -43,3 +43,11 @@ h1 {
 h2 {
 	@apply text-lg lg:text-xl xl:text-2xl;
 }
+
+h3 {
+	@apply text-base md:text-lg lg:text-xl;
+}
+
+h4 {
+	@apply text-base lg:text-lg;
+}

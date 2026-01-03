@@ -15,7 +15,7 @@
 
 	<!-- Tool Cards -->
 	<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-		<ToolCard name="Summit Split" description="Calculate a fair summit split." link="/tools/summit-split" icon={IconMoney} />
+		<ToolCard name="Summit Split" description="Fair splits based on income, not arguments." link="/tools/summit-split" icon={IconMoney} />
 		<!-- Placeholder -->
 		<ToolCard placeholder />
 	</div>
