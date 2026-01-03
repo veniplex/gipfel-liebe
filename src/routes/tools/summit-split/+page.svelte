@@ -219,6 +219,7 @@
 	let newExpenseAmount = $state(0);
 
 	let newPotName = $state("");
+	let newSavingAmount = $state(0);
 
 	// --- Delete Modal State ---
 	let deleteModal = $state<HTMLDialogElement>();
@@ -274,9 +275,10 @@
 	}
 
 	function addPot() {
-		if (!newPotName) return;
-		summitSplitState.addSavingsPot(newPotName, 0);
+		if (!newPotName || newSavingAmount <= 0) return;
+		summitSplitState.addSavingsPot(newPotName, newSavingAmount);
 		newPotName = "";
+		newSavingAmount = 0;
 	}
 
 	// Sections state is now handled by summitSplitState.ui.sections
@@ -686,7 +688,7 @@
 												<input
 													type="text"
 													placeholder="Add new income..."
-													class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+													class="input input-sm w-full border-base-content/20 outline-none focus:border-primary-content md:input-md"
 													bind:value={newIncome.name}
 													onchange={() => summitSplitState.save()}
 												/>
@@ -694,9 +696,10 @@
 
 											<!-- Monthly Amount -->
 											<td>
-												<div class="group-[incomeAmount] relative flex">
+												<div class="group relative flex">
 													<div
-														class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden {newIncome.amount < 0
+														class="absolute inset-0 flex items-center justify-end rounded-lg border border-base-content/20 pr-1 font-mono group-focus-within:hidden {newIncome.amount <
+														0
 															? 'text-error'
 															: newIncome.amount === 0
 																? 'text-base-content/40'
@@ -708,7 +711,7 @@
 														type="number"
 														step="0.01"
 														min="0"
-														class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
+														class="input input-sm mr-1 w-full border-base-content/20 text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
 														bind:value={newIncome.amount}
 														onchange={() => {
 															newIncome.amount = roundUp(newIncome.amount);
@@ -852,7 +855,7 @@
 								<input
 									type="text"
 									placeholder="Add new expense..."
-									class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+									class="input input-sm w-full input-ghost border-base-content/20 outline-none focus:border-primary-content md:input-md"
 									bind:value={newExpenseName}
 									onkeydown={(e) => e.key === "Enter" && addExpense()}
 								/>
@@ -860,9 +863,11 @@
 
 							<!-- Monthly Amount -->
 							<td>
-								<div class="group-[incomeAmount] relative flex">
+								<div class="group relative flex">
 									<div
-										class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden {newExpenseAmount === 0 ? 'text-base-content/40' : ''}"
+										class="absolute inset-0 flex items-center justify-end rounded-lg border border-base-content/20 pr-1 font-mono group-focus-within:hidden {newExpenseAmount === 0
+											? 'text-base-content/40'
+											: ''}"
 									>
 										-{formatCurrency(newExpenseAmount)}
 									</div>
@@ -870,7 +875,7 @@
 										type="number"
 										step="0.01"
 										min="0"
-										class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
+										class="input input-sm mr-1 w-full text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
 										bind:value={newExpenseAmount}
 										onchange={() => {
 											newExpenseAmount = roundUp(newExpenseAmount);
@@ -1033,16 +1038,35 @@
 							<td class="rounded-l-xl">
 								<input
 									type="text"
-									placeholder="Add new saving pot..."
-									class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+									placeholder="Add new saving..."
+									class="input input-sm w-full input-ghost border-base-content/20 outline-none focus:border-primary-content md:input-md"
 									bind:value={newPotName}
 									onkeydown={(e) => e.key === "Enter" && addPot()}
 								/>
 							</td>
 
-							<!-- Monthly Amount (Always 0 when adding for pots) -->
-							<td class="text-right font-mono text-base-content/40">
-								{formatCurrency(0)}
+							<!-- Monthly Amount -->
+							<td>
+								<div class="group relative flex">
+									<div
+										class="absolute inset-0 flex items-center justify-end rounded-lg border border-base-content/20 pr-1 font-mono group-focus-within:hidden {newSavingAmount === 0
+											? 'text-base-content/40'
+											: ''}"
+									>
+										{formatCurrency(newSavingAmount)}
+									</div>
+									<input
+										type="number"
+										step="0.01"
+										min="0"
+										class="input input-sm mr-1 w-full text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
+										bind:value={newSavingAmount}
+										onchange={() => {
+											newSavingAmount = roundUp(newSavingAmount);
+										}}
+										onkeydown={(e) => e.key === "Enter" && addPot()}
+									/>
+								</div>
 							</td>
 
 							<!-- Yearly Amount -->
