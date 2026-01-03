@@ -12,7 +12,11 @@
 	import IconDelete from "~icons/mdi/delete";
 	import IconSettings from "~icons/weui/setting-filled";
 	import IconAlert from "~icons/mdi/alert-circle-outline";
+	import IconInfo from "~icons/mdi/information-outline";
 	import IconBalanceScale from "~icons/mdi/scale-balance";
+	import IconSave from "~icons/mdi/content-save";
+	import IconUpload from "~icons/mdi/file-upload";
+	import IconReset from "~icons/mdi/refresh";
 
 	// Constants
 	const CURRENCY_OPTIONS = [
@@ -91,7 +95,7 @@
 				},
 				options: {
 					responsive: true,
-					plugins: { title: { display: true, text: "Income Share per Person" }, legend: { position: "bottom" } }
+					plugins: { title: { display: true, text: "Income Share per Member" }, legend: { position: "bottom" } }
 				}
 			});
 		}
@@ -284,6 +288,107 @@
 		const currentAmount = currentPot ? currentPot.amount : 0;
 		return Math.max(0, summitSplitState.remainingBalance + currentAmount);
 	}
+
+	// Data Management
+	function exportConfig() {
+		const name = summitSplitState.settings.householdName.replace(/\s+/g, "_") || "Unnamed";
+		const now = new Date();
+		const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+		const filename = `GipfelLiebe_SummitSplit_${name}_${timestamp}.json`;
+
+		const data = {
+			people: summitSplitState.people,
+			incomes: summitSplitState.incomes,
+			expenses: summitSplitState.expenses,
+			savingsPots: summitSplitState.savingsPots,
+			settings: summitSplitState.settings,
+			ui: summitSplitState.ui
+		};
+
+		const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	let fileInput: HTMLInputElement;
+
+	// --- Confirmation Modal State ---
+	let confirmModal = $state<HTMLDialogElement>();
+	let confirmConfig = $state<{
+		title: string;
+		message: string;
+		action: () => void;
+		confirmText: string;
+		confirmClass: string;
+	} | null>(null);
+
+	function openConfirmModal(config: { title: string; message: string; action: () => void; confirmText?: string; confirmClass?: string }) {
+		confirmConfig = {
+			title: config.title,
+			message: config.message,
+			action: config.action,
+			confirmText: config.confirmText || "Confirm",
+			confirmClass: config.confirmClass || "btn-primary"
+		};
+		confirmModal?.showModal();
+	}
+
+	function handleConfirmAction() {
+		confirmConfig?.action();
+		confirmModal?.close();
+		confirmConfig = null;
+	}
+
+	function handleFileImport(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		openConfirmModal({
+			title: "Load Configuration",
+			message: "Are you sure you want to load this file? This will OVERWRITE all current data.",
+			confirmText: "Load",
+			confirmClass: "btn-secondary",
+			action: () => {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					try {
+						const content = e.target?.result as string;
+						const data = JSON.parse(content);
+						summitSplitState.importData(data);
+						updateCharts();
+					} catch (err) {
+						openConfirmModal({
+							title: "Import Failed",
+							message: "Failed to parse JSON file.",
+							confirmText: "OK",
+							action: () => {}
+						});
+						console.error(err);
+					}
+				};
+				reader.readAsText(file);
+			}
+		});
+		target.value = "";
+	}
+
+	function resetData() {
+		openConfirmModal({
+			title: "Reset All Data",
+			message: "Are you sure you want to reset ALL data? This action cannot be undone.",
+			confirmText: "Reset",
+			confirmClass: "btn-error",
+			action: () => {
+				summitSplitState.reset();
+				updateCharts();
+			}
+		});
+	}
 </script>
 
 <div class="flex flex-col gap-4">
@@ -293,7 +398,7 @@
 		<h2 class="text-center">Calculate a fair monthly split of the cost with your partner and family.</h2>
 	</div>
 
-	<!-- 1. Household Settings -->
+	<!-- 1. Settings -->
 	<div class="collapse-arrow collapse border-2 border-base-300 bg-base-200">
 		<!-- Checkbox for opening/closing the section -->
 		<input type="checkbox" bind:checked={summitSplitState.ui.sections.settings} onchange={() => summitSplitState.save()} />
@@ -302,7 +407,7 @@
 		<div class="collapse-title flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<IconSettings class="inline size-6 md:size-8 lg:size-10" />
-				<h3 class="font-bold">Household Settings</h3>
+				<h3 class="font-bold">Settings</h3>
 			</div>
 			{#if !summitSplitState.ui.sections.settings}
 				<h3 class="opacity-75">
@@ -313,107 +418,141 @@
 
 		<!-- Section content -->
 		<div class="collapse-content">
-			<!-- Currency Settings -->
-			<div class="divider">
-				<h4>Currency Settings</h4>
+			<!-- Data Management -->
+			<div class="mb-4 flex flex-col items-center gap-2">
+				<div class="divider">
+					<h4>General</h4>
+				</div>
+				<!-- Data Management Buttons -->
+				<div class="flex flex-wrap gap-2">
+					<button class="btn btn-sm btn-primary md:btn-md" onclick={exportConfig}>
+						<IconSave /> Save Config
+					</button>
+					<button class="btn btn-outline btn-sm btn-secondary md:btn-md" onclick={() => fileInput.click()}>
+						<IconUpload /> Load Config
+					</button>
+					<input type="file" accept=".json" bind:this={fileInput} onchange={handleFileImport} class="hidden" />
+					<button class="btn btn-outline btn-sm btn-error md:btn-md" onclick={resetData}>
+						<IconReset /> Reset All
+					</button>
+				</div>
 			</div>
 
-			<!-- Currency Select / Dropdown -->
-			<div class="form-control">
-				<!-- Labeled Select / Dropdown -->
-				<label class="select w-fit select-sm outline-none md:select-md">
-					<!-- Label -->
-					<span class="label">Currency</span>
+			<!-- Household Settings -->
+			<div class="flex flex-col items-center gap-2">
+				<div class="divider">
+					<h4>Household Settings</h4>
+				</div>
 
-					<!-- Select / Dropdown -->
-					<select value={summitSplitState.settings.currency} onchange={(e) => summitSplitState.updateSettings(e.currentTarget.value)} class="tracking-widest">
-						{#each CURRENCY_OPTIONS as currency (currency.value)}
-							<option value={currency.value}>
-								{currency.symbol}
-								{currency.value}
-							</option>
-						{/each}
-					</select>
-				</label>
-			</div>
+				<div class="flex flex-col justify-center gap-4">
+					<div class="flex flex-wrap justify-center gap-4">
+						<!-- Household Name -->
+						<div class="form-control grow">
+							<!-- Labeled Input -->
+							<label class="input input-sm w-full outline-none md:input-md {summitSplitState.settings.householdName ? '' : 'input-error'}">
+								<!-- Label -->
+								<span class="label">Household Name</span>
 
-			<!-- Household Members -->
-			<div class="divider">
-				<h4>Household Members</h4>
-			</div>
+								<!-- Input -->
+								<input type="text" placeholder="e.g. My Family" bind:value={summitSplitState.settings.householdName} onchange={() => summitSplitState.save()} />
+							</label>
+						</div>
 
-			<!-- Household Members List -->
-			<div class="flex flex-col gap-2">
-				<!-- Existing Household Members -->
-				{#each summitSplitState.people as person (person.id)}
-					<div class="group flex items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2">
-						<!-- Color Picker Dropdown -->
-						<div class="dropdown dropdown-right dropdown-center">
-							<div tabindex="0" role="button" class="size-6 cursor-pointer rounded-full ring-2 ring-primary-content md:size-8" style="background-color: {person.color}"></div>
-							<div tabindex="0" role="menu" aria-label="Color Picker" class="dropdown-content card-compact card ml-2 min-w-max border border-base-300 bg-base-200 p-2 shadow">
-								<div class="grid grid-cols-5 gap-2">
-									{#each COLOR_PRESETS as color (color)}
-										<button
-											aria-label="Select color {color}"
-											class="size-6 cursor-pointer rounded-full transition-transform hover:scale-110 md:size-8 {person.color === color ? 'ring-2 ring-primary-content' : ''}"
-											style="background-color: {color}"
-											onclick={() => {
-												person.color = color;
-												summitSplitState.save();
-												(document.activeElement as HTMLElement)?.blur(); // Closes dropdown
-											}}
-										></button>
+						<!-- Currency Select / Dropdown -->
+						<div class="form-control">
+							<!-- Labeled Select / Dropdown -->
+							<label class="select w-fit select-sm outline-none md:select-md">
+								<!-- Label -->
+								<span class="label">Currency</span>
+
+								<!-- Select / Dropdown -->
+								<select value={summitSplitState.settings.currency} onchange={(e) => summitSplitState.updateSettings(e.currentTarget.value)} class="tracking-widest">
+									{#each CURRENCY_OPTIONS as currency (currency.value)}
+										<option value={currency.value}>
+											{currency.symbol}
+											{currency.value}
+										</option>
 									{/each}
+								</select>
+							</label>
+						</div>
+					</div>
+
+					<!-- Household Members List -->
+					<div class="flex flex-col gap-2">
+						<!-- Existing Household Members -->
+						{#each summitSplitState.people as person (person.id)}
+							<div class="group flex items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2">
+								<!-- Color Picker Dropdown -->
+								<div class="dropdown dropdown-right dropdown-center">
+									<div tabindex="0" role="button" class="size-6 cursor-pointer rounded-full ring-2 ring-primary-content md:size-8" style="background-color: {person.color}"></div>
+									<div tabindex="0" role="menu" aria-label="Color Picker" class="dropdown-content card-compact card ml-2 min-w-max border border-base-300 bg-base-200 p-2 shadow">
+										<div class="grid grid-cols-5 gap-2">
+											{#each COLOR_PRESETS as color (color)}
+												<button
+													aria-label="Select color {color}"
+													class="size-6 cursor-pointer rounded-full transition-transform hover:scale-110 md:size-8 {person.color === color ? 'ring-2 ring-primary-content' : ''}"
+													style="background-color: {color}"
+													onclick={() => {
+														person.color = color;
+														summitSplitState.save();
+														(document.activeElement as HTMLElement)?.blur(); // Closes dropdown
+													}}
+												></button>
+											{/each}
+										</div>
+									</div>
+								</div>
+
+								<!-- Input to edit name -->
+								<input
+									type="text"
+									class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+									bind:value={person.name}
+									onchange={() => summitSplitState.save()}
+								/>
+
+								<!-- Delete Button -->
+								<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("person", person.id, person.name)}><IconDelete /></button>
+							</div>
+						{/each}
+
+						<!-- Add New Household Member -->
+						<div class="flex items-center gap-3 rounded-lg border border-transparent bg-transparent p-2">
+							<!-- Color Picker Dropdown -->
+							<div class="dropdown dropdown-right dropdown-center">
+								<div tabindex="0" role="button" class="size-6 cursor-pointer rounded-full ring-2 ring-primary-content md:size-8" style="background-color: {newPersonColor}"></div>
+								<div tabindex="0" role="menu" aria-label="Color Picker" class="dropdown-content card-compact card ml-2 min-w-max border border-base-300 bg-base-200 p-2 shadow">
+									<div class="grid grid-cols-5 gap-2">
+										{#each COLOR_PRESETS as color (color)}
+											<button
+												aria-label="Select color {color}"
+												class="size-6 cursor-pointer rounded-full transition-transform hover:scale-110 {newPersonColor === color ? 'ring-2 ring-primary-content' : ''}"
+												style="background-color: {color}"
+												onclick={() => {
+													newPersonColor = color;
+													(document.activeElement as HTMLElement)?.blur(); // Closes dropdown
+												}}
+											></button>
+										{/each}
+									</div>
 								</div>
 							</div>
-						</div>
 
-						<!-- Input to edit name -->
-						<input
-							type="text"
-							class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
-							bind:value={person.name}
-							onchange={() => summitSplitState.save()}
-						/>
+							<!-- Input to add new person -->
+							<input
+								type="text"
+								placeholder="Add a new member..."
+								class="input input-sm w-full outline-none md:input-md"
+								bind:value={newPersonName}
+								onkeydown={(e) => e.key === "Enter" && addPerson()}
+								disabled={!summitSplitState.settings.householdName}
+							/>
 
-						<!-- Delete Button -->
-						<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("person", person.id, person.name)}><IconDelete /></button>
-					</div>
-				{/each}
-
-				<!-- Add New Household Member -->
-				<div class="flex items-center gap-3 rounded-lg border border-transparent bg-transparent p-2">
-					<!-- Color Picker Dropdown -->
-					<div class="dropdown dropdown-right dropdown-center">
-						<div tabindex="0" role="button" class="size-6 cursor-pointer rounded-full ring-2 ring-primary-content md:size-8" style="background-color: {newPersonColor}"></div>
-						<div tabindex="0" role="menu" aria-label="Color Picker" class="dropdown-content card-compact card ml-2 min-w-max border border-base-300 bg-base-200 p-2 shadow">
-							<div class="grid grid-cols-5 gap-2">
-								{#each COLOR_PRESETS as color (color)}
-									<button
-										aria-label="Select color {color}"
-										class="size-6 cursor-pointer rounded-full transition-transform hover:scale-110 {newPersonColor === color ? 'ring-2 ring-primary-content' : ''}"
-										style="background-color: {color}"
-										onclick={() => {
-											newPersonColor = color;
-											(document.activeElement as HTMLElement)?.blur(); // Closes dropdown
-										}}
-									></button>
-								{/each}
-							</div>
+							<!-- Add Button -->
+							<button class="btn btn-sm btn-primary md:btn-md" onclick={addPerson} disabled={!newPersonName}><IconPlus /> Add</button>
 						</div>
 					</div>
-
-					<!-- Input to add new person -->
-					<input
-						type="text"
-						placeholder="Add a new member..."
-						class="input input-sm w-full outline-none md:input-md"
-						bind:value={newPersonName}
-						onkeydown={(e) => e.key === "Enter" && addPerson()}
-					/>
-
-					<!-- Add Button -->
-					<button class="btn btn-sm btn-primary md:btn-md" onclick={addPerson} disabled={!newPersonName}><IconPlus /> Add</button>
 				</div>
 			</div>
 		</div>
@@ -444,8 +583,8 @@
 			{#if summitSplitState.people.length === 0}
 				<!-- If no people are added, show an alert -->
 				<div role="alert" class="alert alert-info">
-					<IconAlert class="size-6 md:size-8 lg:size-10" />
-					<span>Please add household members in the household settings first.</span>
+					<IconInfo class="size-6 md:size-8 lg:size-10" />
+					<span>Please add members in the household settings first.</span>
 				</div>
 			{:else}
 				<!-- If people are added, show the income of each person -->
@@ -642,135 +781,143 @@
 		<div class="collapse-content flex flex-col gap-4">
 			<h4>Shared monthly household expenses.</h4>
 
-			<table class="table">
-				<thead>
-					<tr>
-						<th>Description</th>
-						<th class="text-right">Monthly</th>
-						<th class="text-right">Yearly</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each summitSplitState.expenses as expense (expense.id)}
-						<tr class="group hover:bg-current/10">
-							<td>
+			{#if summitSplitState.people.length === 0}
+				<!-- If no people are added, show an alert -->
+				<div role="alert" class="alert alert-info">
+					<IconInfo class="size-6 md:size-8 lg:size-10" />
+					<span>Please add members in the household settings first.</span>
+				</div>
+			{:else}
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Description</th>
+							<th class="text-right">Monthly</th>
+							<th class="text-right">Yearly</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each summitSplitState.expenses as expense (expense.id)}
+							<tr class="group hover:bg-current/10">
+								<td>
+									<input
+										type="text"
+										class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+										bind:value={expense.name}
+										onchange={() => summitSplitState.save()}
+									/>
+								</td>
+								<!-- Monthly Amount -->
+								<td>
+									<div class="group-[incomeAmount]: relative flex">
+										<div class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden">
+											-{formatCurrency(expense.amount)}
+										</div>
+										<input
+											type="number"
+											step="0.01"
+											min="0"
+											class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
+											bind:value={expense.amount}
+											onchange={() => {
+												if (expense.amount < 0) expense.amount = 0;
+												expense.amount = roundUp(expense.amount);
+												summitSplitState.save();
+											}}
+										/>
+									</div>
+								</td>
+
+								<!-- Yearly Amount -->
+								<td class="cursor-default text-right font-mono opacity-80">
+									-{formatCurrency(expense.amount * 12)}
+								</td>
+								<td>
+									<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("expense", expense.id, expense.name)}>
+										<IconDelete />
+									</button>
+								</td>
+							</tr>
+						{/each}
+
+						<tr>
+							<td class="col-span-4 border-none"></td>
+						</tr>
+
+						<!-- Add Expense Row -->
+						<tr class="group bg-base-100 transition-colors">
+							<!-- Description -->
+							<td class="rounded-l-xl">
 								<input
 									type="text"
+									placeholder="Add new expense..."
 									class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
-									bind:value={expense.name}
-									onchange={() => summitSplitState.save()}
+									bind:value={newExpenseName}
+									onkeydown={(e) => e.key === "Enter" && addExpense()}
 								/>
 							</td>
+
 							<!-- Monthly Amount -->
 							<td>
-								<div class="group-[incomeAmount]: relative flex">
-									<div class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden">
-										-{formatCurrency(expense.amount)}
+								<div class="group-[incomeAmount] relative flex">
+									<div
+										class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden {newExpenseAmount === 0 ? 'text-base-content/40' : ''}"
+									>
+										-{formatCurrency(newExpenseAmount)}
 									</div>
 									<input
 										type="number"
 										step="0.01"
 										min="0"
 										class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
-										bind:value={expense.amount}
+										bind:value={newExpenseAmount}
 										onchange={() => {
-											if (expense.amount < 0) expense.amount = 0;
-											expense.amount = roundUp(expense.amount);
-											summitSplitState.save();
+											newExpenseAmount = roundUp(newExpenseAmount);
 										}}
+										onkeydown={(e) => e.key === "Enter" && addExpense()}
 									/>
 								</div>
 							</td>
 
 							<!-- Yearly Amount -->
-							<td class="cursor-default text-right font-mono opacity-80">
-								-{formatCurrency(expense.amount * 12)}
+							<td class="text-right font-mono opacity-80">
+								-{formatCurrency(newExpenseAmount * 12)}
 							</td>
-							<td>
-								<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("expense", expense.id, expense.name)}>
-									<IconDelete />
+
+							<!-- Add Button -->
+							<td class="rounded-r-xl">
+								<button
+									class="btn btn-sm {!newExpenseName || newExpenseAmount <= 0 ? 'btn-ghost' : ''} btn-error md:btn-md"
+									onclick={addExpense}
+									disabled={!newExpenseName || newExpenseAmount <= 0}
+								>
+									<IconPlus />
 								</button>
 							</td>
 						</tr>
-					{/each}
+					</tbody>
+				</table>
 
-					<tr>
-						<td class="col-span-4 border-none"></td>
-					</tr>
-
-					<!-- Add Expense Row -->
-					<tr class="group bg-base-100 transition-colors">
-						<!-- Description -->
-						<td class="rounded-l-xl">
-							<input
-								type="text"
-								placeholder="Add new expense..."
-								class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
-								bind:value={newExpenseName}
-								onkeydown={(e) => e.key === "Enter" && addExpense()}
-							/>
-						</td>
-
-						<!-- Monthly Amount -->
-						<td>
-							<div class="group-[incomeAmount] relative flex">
-								<div
-									class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden {newExpenseAmount === 0 ? 'text-base-content/40' : ''}"
-								>
-									-{formatCurrency(newExpenseAmount)}
-								</div>
-								<input
-									type="number"
-									step="0.01"
-									min="0"
-									class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
-									bind:value={newExpenseAmount}
-									onchange={() => {
-										newExpenseAmount = roundUp(newExpenseAmount);
-									}}
-									onkeydown={(e) => e.key === "Enter" && addExpense()}
-								/>
-							</div>
-						</td>
-
-						<!-- Yearly Amount -->
-						<td class="text-right font-mono opacity-80">
-							-{formatCurrency(newExpenseAmount * 12)}
-						</td>
-
-						<!-- Add Button -->
-						<td class="rounded-r-xl">
-							<button
-								class="btn btn-sm {!newExpenseName || newExpenseAmount <= 0 ? 'btn-ghost' : ''} btn-error md:btn-md"
-								onclick={addExpense}
-								disabled={!newExpenseName || newExpenseAmount <= 0}
-							>
-								<IconPlus />
-							</button>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-
-			<!-- Total Expenses for this household -->
-			<div class="flex cursor-default items-start justify-end gap-4">
-				<p class="font-semibold opacity-75">Total Expenses:</p>
-				<div class="flex flex-col items-end">
-					<table>
-						<tbody class="">
-							<tr>
-								<td class="pr-2 text-right font-mono text-error">-{formatCurrency(summitSplitState.totalExpenses)}</td>
-								<td class="text-left opacity-75">/ month</td>
-							</tr>
-							<tr>
-								<td class="pr-2 text-right font-mono text-error">-{formatCurrency(summitSplitState.totalExpenses * 12)}</td>
-								<td class="text-left opacity-75">/ year</td>
-							</tr>
-						</tbody>
-					</table>
+				<!-- Total Expenses for this household -->
+				<div class="flex cursor-default items-start justify-end gap-4">
+					<p class="font-semibold opacity-75">Total Expenses:</p>
+					<div class="flex flex-col items-end">
+						<table>
+							<tbody class="">
+								<tr>
+									<td class="pr-2 text-right font-mono text-error">-{formatCurrency(summitSplitState.totalExpenses)}</td>
+									<td class="text-left opacity-75">/ month</td>
+								</tr>
+								<tr>
+									<td class="pr-2 text-right font-mono text-error">-{formatCurrency(summitSplitState.totalExpenses * 12)}</td>
+									<td class="text-left opacity-75">/ year</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 
@@ -791,138 +938,146 @@
 		<div class="collapse-content flex flex-col gap-4">
 			<h4>Allocate your remaining balance to different savings pots.</h4>
 
-			<!-- Remaining Budget -->
-			<div class="flex cursor-default flex-col items-center justify-center gap-2 rounded-xl bg-info/20 p-4">
-				<p class="font-semibold opacity-75">Remaining Budget:</p>
-				<div class="flex flex-col items-end">
-					<table>
-						<tbody>
-							<tr>
-								<td class="pr-2 text-right font-mono">{formatCurrency(summitSplitState.remainingBalance)}</td>
-								<td class="text-left opacity-75">/ month</td>
-							</tr>
-							<tr>
-								<td class="pr-2 text-right font-mono">{formatCurrency(summitSplitState.remainingBalance * 12)}</td>
-								<td class="text-left opacity-75">/ year</td>
-							</tr>
-						</tbody>
-					</table>
+			{#if summitSplitState.people.length === 0}
+				<!-- If no people are added, show an alert -->
+				<div role="alert" class="alert alert-info">
+					<IconInfo class="size-6 md:size-8 lg:size-10" />
+					<span>Please add members in the household settings first.</span>
 				</div>
-			</div>
+			{:else}
+				<!-- Remaining Budget -->
+				<div class="flex cursor-default flex-col items-center justify-center gap-2 rounded-xl bg-info/20 p-4">
+					<p class="font-semibold opacity-75">Remaining Budget:</p>
+					<div class="flex flex-col items-end">
+						<table>
+							<tbody>
+								<tr>
+									<td class="pr-2 text-right font-mono">{formatCurrency(summitSplitState.remainingBalance)}</td>
+									<td class="text-left opacity-75">/ month</td>
+								</tr>
+								<tr>
+									<td class="pr-2 text-right font-mono">{formatCurrency(summitSplitState.remainingBalance * 12)}</td>
+									<td class="text-left opacity-75">/ year</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
 
-			<table class="table">
-				<thead>
-					<tr>
-						<th>Saving Pot</th>
-						<th class="text-right">Monthly</th>
-						<th class="text-right">Yearly</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each summitSplitState.savingsPots as pot (pot.id)}
-						{@const max = getMaxPotAllocation(pot.id)}
-						<tr class="group hover:bg-current/10">
-							<!-- Name -->
-							<td>
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Saving Pot</th>
+							<th class="text-right">Monthly</th>
+							<th class="text-right">Yearly</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each summitSplitState.savingsPots as pot (pot.id)}
+							{@const max = getMaxPotAllocation(pot.id)}
+							<tr class="group hover:bg-current/10">
+								<!-- Name -->
+								<td>
+									<input
+										type="text"
+										class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
+										bind:value={pot.name}
+										onchange={() => summitSplitState.save()}
+									/>
+								</td>
+
+								<!-- Monthly Amount -->
+								<td>
+									<div class="group-[incomeAmount]: relative flex">
+										<div class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden">
+											{formatCurrency(pot.amount)}
+										</div>
+										<input
+											type="number"
+											step="0.01"
+											min="0"
+											{max}
+											class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
+											bind:value={pot.amount}
+											onchange={() => {
+												if (pot.amount < 0) pot.amount = 0;
+												if (pot.amount > max) pot.amount = max;
+												pot.amount = roundUp(pot.amount);
+												summitSplitState.save();
+											}}
+										/>
+									</div>
+								</td>
+
+								<!-- Yearly Amount -->
+								<td class="cursor-default text-right font-mono opacity-80">
+									{formatCurrency(pot.amount * 12)}
+								</td>
+
+								<!-- Delete Button -->
+								<td>
+									<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("pot", pot.id, pot.name)}>
+										<IconDelete />
+									</button>
+								</td>
+							</tr>
+						{/each}
+
+						<tr>
+							<td class="col-span-4 border-none"></td>
+						</tr>
+
+						<!-- Add Pot Row -->
+						<tr class="group bg-base-100 transition-colors">
+							<td class="rounded-l-xl">
 								<input
 									type="text"
+									placeholder="Add new saving pot..."
 									class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
-									bind:value={pot.name}
-									onchange={() => summitSplitState.save()}
+									bind:value={newPotName}
+									onkeydown={(e) => e.key === "Enter" && addPot()}
 								/>
 							</td>
 
-							<!-- Monthly Amount -->
-							<td>
-								<div class="group-[incomeAmount]: relative flex">
-									<div class="absolute inset-0 flex items-center justify-end font-mono group-[incomeAmount]:focus-within:hidden">
-										{formatCurrency(pot.amount)}
-									</div>
-									<input
-										type="number"
-										step="0.01"
-										min="0"
-										{max}
-										class="input inset-x-4 input-sm text-right font-mono opacity-0 outline-none focus:border-primary-content focus:opacity-100 md:input-md"
-										bind:value={pot.amount}
-										onchange={() => {
-											if (pot.amount < 0) pot.amount = 0;
-											if (pot.amount > max) pot.amount = max;
-											pot.amount = roundUp(pot.amount);
-											summitSplitState.save();
-										}}
-									/>
-								</div>
+							<!-- Monthly Amount (Always 0 when adding for pots) -->
+							<td class="text-right font-mono text-base-content/40">
+								{formatCurrency(0)}
 							</td>
 
 							<!-- Yearly Amount -->
-							<td class="cursor-default text-right font-mono opacity-80">
-								{formatCurrency(pot.amount * 12)}
+							<td class="text-right font-mono opacity-80">
+								{formatCurrency(0)}
 							</td>
 
-							<!-- Delete Button -->
-							<td>
-								<button class="btn hidden btn-sm btn-error group-hover:block md:btn-md" onclick={() => confirmDelete("pot", pot.id, pot.name)}>
-									<IconDelete />
+							<td class="rounded-r-xl">
+								<button class="btn btn-sm {!newPotName ? 'btn-ghost' : 'btn-info'} md:btn-md" onclick={addPot} disabled={!newPotName}>
+									<IconPlus />
 								</button>
 							</td>
 						</tr>
-					{/each}
+					</tbody>
+				</table>
 
-					<tr>
-						<td class="col-span-4 border-none"></td>
-					</tr>
-
-					<!-- Add Pot Row -->
-					<tr class="group bg-base-100 transition-colors">
-						<td class="rounded-l-xl">
-							<input
-								type="text"
-								placeholder="Add new saving pot..."
-								class="input input-sm w-full input-ghost outline-none focus:border-primary-content md:input-md"
-								bind:value={newPotName}
-								onkeydown={(e) => e.key === "Enter" && addPot()}
-							/>
-						</td>
-
-						<!-- Monthly Amount (Always 0 when adding for pots) -->
-						<td class="text-right font-mono text-base-content/40">
-							{formatCurrency(0)}
-						</td>
-
-						<!-- Yearly Amount -->
-						<td class="text-right font-mono opacity-80">
-							{formatCurrency(0)}
-						</td>
-
-						<td class="rounded-r-xl">
-							<button class="btn btn-sm {!newPotName ? 'btn-ghost' : 'btn-info'} md:btn-md" onclick={addPot} disabled={!newPotName}>
-								<IconPlus />
-							</button>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-
-			<!-- Total Savings summary -->
-			<div class="flex cursor-default items-start justify-end gap-4">
-				<p class="font-semibold opacity-75">Total Savings:</p>
-				<div class="flex flex-col items-end">
-					<table>
-						<tbody>
-							<tr>
-								<td class="pr-2 text-right font-mono text-info">{formatCurrency(summitSplitState.totalSavings)}</td>
-								<td class="text-left opacity-75">/ month</td>
-							</tr>
-							<tr>
-								<td class="pr-2 text-right font-mono text-info">{formatCurrency(summitSplitState.totalSavings * 12)}</td>
-								<td class="text-left opacity-75">/ year</td>
-							</tr>
-						</tbody>
-					</table>
+				<!-- Total Savings summary -->
+				<div class="flex cursor-default items-start justify-end gap-4">
+					<p class="font-semibold opacity-75">Total Savings:</p>
+					<div class="flex flex-col items-end">
+						<table>
+							<tbody>
+								<tr>
+									<td class="pr-2 text-right font-mono text-info">{formatCurrency(summitSplitState.totalSavings)}</td>
+									<td class="text-left opacity-75">/ month</td>
+								</tr>
+								<tr>
+									<td class="pr-2 text-right font-mono text-info">{formatCurrency(summitSplitState.totalSavings * 12)}</td>
+									<td class="text-left opacity-75">/ year</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 
@@ -949,9 +1104,9 @@
 				<!-- List of shares (Table) -->
 				<div class="overflow-x-auto">
 					{#if summitSplitState.people.length === 0}
-						<div class="alert alert-info">
-							<IconAlert />
-							<span>Add people to see calculation.</span>
+						<div role="alert" class="alert alert-info">
+							<IconInfo class="size-6 md:size-8 lg:size-10" />
+							<span>Please add members in the household settings first.</span>
 						</div>
 					{:else}
 						<table class="table">
@@ -965,7 +1120,7 @@
 									<th colspan="2" class="border-l border-base-content/5 text-center">Remaining Income</th>
 								</tr>
 								<tr>
-									<th>Person</th>
+									<th>Member</th>
 									<th class="border-l border-base-content/5 text-right font-semibold">%</th>
 									<th class="text-right font-semibold">Monthly</th>
 									<th class="text-right font-semibold">Yearly</th>
@@ -1020,78 +1175,86 @@
 			</div>
 		</div>
 		<div class="collapse-content flex flex-col gap-6">
-			<!-- Interval Toggle -->
-			<div class="flex justify-center">
-				<div class="join">
-					<input
-						class="btn join-item btn-sm btn-neutral checked:btn-primary md:btn-md"
-						type="radio"
-						name="interval_toggle"
-						aria-label="Monthly"
-						checked={evaluationInterval === "monthly"}
-						onchange={() => (evaluationInterval = "monthly")}
-					/>
-					<input
-						class="btn join-item btn-sm btn-neutral checked:btn-primary md:btn-md"
-						type="radio"
-						name="interval_toggle"
-						aria-label="Yearly"
-						checked={evaluationInterval === "yearly"}
-						onchange={() => (evaluationInterval = "yearly")}
-					/>
+			{#if summitSplitState.people.length === 0}
+				<!-- If no people are added, show an alert -->
+				<div role="alert" class="alert alert-info">
+					<IconInfo class="size-6 md:size-8 lg:size-10" />
+					<span>Please add members in the household settings first.</span>
 				</div>
-			</div>
-
-			<!-- Key Metrics (Stats) -->
-			<div class="stats stats-vertical border border-base-300 bg-base-100 md:stats-horizontal">
-				<div class="stat">
-					<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Savings Rate</div>
-					<div class="stat-value font-mono text-info">
-						{summitSplitState.totalIncome > 0 ? ((summitSplitState.totalSavings / summitSplitState.totalIncome) * 100).toFixed(1) : "0.0"}%
+			{:else}
+				<!-- Interval Toggle -->
+				<div class="flex justify-center">
+					<div class="join">
+						<input
+							class="btn join-item btn-sm btn-neutral checked:btn-primary md:btn-md"
+							type="radio"
+							name="interval_toggle"
+							aria-label="Monthly"
+							checked={evaluationInterval === "monthly"}
+							onchange={() => (evaluationInterval = "monthly")}
+						/>
+						<input
+							class="btn join-item btn-sm btn-neutral checked:btn-primary md:btn-md"
+							type="radio"
+							name="interval_toggle"
+							aria-label="Yearly"
+							checked={evaluationInterval === "yearly"}
+							onchange={() => (evaluationInterval = "yearly")}
+						/>
 					</div>
-					<div class="stat-desc">Contribution vs income</div>
 				</div>
 
-				<div class="stat">
-					<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Expense Ratio</div>
-					<div class="stat-value font-mono text-error">
-						{summitSplitState.totalIncome > 0 ? ((summitSplitState.totalExpenses / summitSplitState.totalIncome) * 100).toFixed(1) : "0.0"}%
+				<!-- Key Metrics (Stats) -->
+				<div class="stats stats-vertical border border-base-300 bg-base-100 md:stats-horizontal">
+					<div class="stat">
+						<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Savings Rate</div>
+						<div class="stat-value font-mono text-info">
+							{summitSplitState.totalIncome > 0 ? ((summitSplitState.totalSavings / summitSplitState.totalIncome) * 100).toFixed(1) : "0.0"}%
+						</div>
+						<div class="stat-desc">Contribution vs income</div>
 					</div>
-					<div class="stat-desc">Fixed costs vs income</div>
-				</div>
 
-				<div class="stat">
-					<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Unallocated</div>
-					<div class="stat-value font-mono text-xl whitespace-nowrap text-success md:text-2xl">
-						{formatCurrency(summitSplitState.remainingBalance * multiplier)}
+					<div class="stat">
+						<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Expense Ratio</div>
+						<div class="stat-value font-mono text-error">
+							{summitSplitState.totalIncome > 0 ? ((summitSplitState.totalExpenses / summitSplitState.totalIncome) * 100).toFixed(1) : "0.0"}%
+						</div>
+						<div class="stat-desc">Fixed costs vs income</div>
 					</div>
-					<div class="stat-desc">{evaluationInterval === "monthly" ? "Monthly" : "Yearly"} remaining</div>
-				</div>
-			</div>
 
-			<!-- Charts Grid -->
-			<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-				<!-- 1. Income Share -->
-				<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
-					<canvas bind:this={incomeShareChartCanvas}></canvas>
+					<div class="stat">
+						<div class="stat-title text-sm font-bold tracking-wider uppercase opacity-70">Unallocated</div>
+						<div class="stat-value font-mono text-xl whitespace-nowrap text-success md:text-2xl">
+							{formatCurrency(summitSplitState.remainingBalance * multiplier)}
+						</div>
+						<div class="stat-desc">{evaluationInterval === "monthly" ? "Monthly" : "Yearly"} remaining</div>
+					</div>
 				</div>
-				<!-- 2. Income vs Costs -->
-				<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
-					<canvas bind:this={incomeVsCostsChartCanvas}></canvas>
+
+				<!-- Charts Grid -->
+				<div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+					<!-- 1. Income Share -->
+					<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
+						<canvas bind:this={incomeShareChartCanvas}></canvas>
+					</div>
+					<!-- 2. Income vs Costs -->
+					<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
+						<canvas bind:this={incomeVsCostsChartCanvas}></canvas>
+					</div>
+					<!-- 3. Income Sources -->
+					<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
+						<canvas bind:this={incomeSourcesChartCanvas}></canvas>
+					</div>
+					<!-- 4. Expenses Breakdown -->
+					<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
+						<canvas bind:this={expensesChartCanvas}></canvas>
+					</div>
+					<!-- 5. Savings Breakdown -->
+					<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
+						<canvas bind:this={savingsChartCanvas}></canvas>
+					</div>
 				</div>
-				<!-- 3. Income Sources -->
-				<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
-					<canvas bind:this={incomeSourcesChartCanvas}></canvas>
-				</div>
-				<!-- 4. Expenses Breakdown -->
-				<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4">
-					<canvas bind:this={expensesChartCanvas}></canvas>
-				</div>
-				<!-- 5. Savings Breakdown -->
-				<div class="card flex max-h-80 items-center justify-center border border-base-300 bg-base-100 p-4 md:col-span-2 md:mx-auto md:w-1/2">
-					<canvas bind:this={savingsChartCanvas}></canvas>
-				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -1112,5 +1275,24 @@
 				<button class="btn text-white btn-error" onclick={executeDelete}>Delete</button>
 			</form>
 		</div>
+	</div>
+</dialog>
+
+<!-- Generic Confirmation Modal -->
+<dialog bind:this={confirmModal} class="modal modal-bottom sm:modal-middle">
+	<div class="modal-box">
+		{#if confirmConfig}
+			<h3 class="flex items-center gap-2 text-lg font-bold">
+				<IconInfo class="size-6 text-info" />
+				{confirmConfig.title}
+			</h3>
+			<p class="py-4">{confirmConfig.message}</p>
+			<div class="modal-action">
+				<form method="dialog">
+					<button class="btn btn-ghost">Cancel</button>
+					<button class="btn {confirmConfig.confirmClass}" onclick={handleConfirmAction}>{confirmConfig.confirmText}</button>
+				</form>
+			</div>
+		{/if}
 	</div>
 </dialog>

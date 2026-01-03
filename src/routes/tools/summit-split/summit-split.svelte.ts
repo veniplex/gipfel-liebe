@@ -27,6 +27,7 @@ export interface SavingsPot {
 
 export interface Settings {
 	currency: string;
+	householdName: string;
 }
 
 export interface UIState {
@@ -46,15 +47,15 @@ export class SummitSplitState {
 	incomes = $state<IncomeSource[]>([]);
 	expenses = $state<Expense[]>([]);
 	savingsPots = $state<SavingsPot[]>([]);
-	settings = $state<Settings>({ currency: "EUR" });
+	settings = $state<Settings>({ currency: "EUR", householdName: "" });
 	ui = $state<UIState>({
 		sections: {
 			settings: true,
-			income: true,
-			expenses: true,
-			savings: true,
-			fairSplit: true,
-			analysis: true,
+			income: false,
+			expenses: false,
+			savings: false,
+			fairSplit: false,
+			analysis: false,
 			personIncome: {}
 		}
 	});
@@ -74,15 +75,16 @@ export class SummitSplitState {
 				this.incomes = parsed.incomes || [];
 				this.expenses = parsed.expenses || [];
 				this.savingsPots = parsed.savingsPots || [];
-				this.settings = parsed.settings || { currency: "EUR" };
+				this.settings = parsed.settings || { currency: "EUR", householdName: "" };
+				if (this.settings.householdName === undefined) this.settings.householdName = "";
 				this.ui = parsed.ui || {
 					sections: {
 						settings: true,
-						income: true,
-						expenses: true,
-						savings: true,
-						fairSplit: true,
-						analysis: true,
+						income: false,
+						expenses: false,
+						savings: false,
+						fairSplit: false,
+						analysis: false,
 						personIncome: {}
 					}
 				};
@@ -172,8 +174,42 @@ export class SummitSplitState {
         }
     }
 
-    updateSettings(currency: string) {
-        this.settings.currency = currency;
+    updateSettings(currency: string, householdName?: string) {
+        if (currency) this.settings.currency = currency;
+        if (householdName !== undefined) this.settings.householdName = householdName;
+        this.save();
+    }
+
+    reset() {
+        this.people = [];
+        this.incomes = [];
+        this.expenses = [];
+        this.savingsPots = [];
+        this.settings = { currency: "EUR", householdName: "" };
+        this.ui = {
+            sections: {
+                settings: true,
+                income: false,
+                expenses: false,
+                savings: false,
+                fairSplit: false,
+                analysis: false,
+                personIncome: {}
+            }
+        };
+        if (browser) {
+            localStorage.removeItem('summit-split-data');
+        }
+    }
+
+    importData(data: any) {
+        if (!data) return;
+        this.people = data.people || [];
+        this.incomes = data.incomes || [];
+        this.expenses = data.expenses || [];
+        this.savingsPots = data.savingsPots || [];
+        this.settings = data.settings || { currency: "EUR", householdName: "" };
+        if (this.settings.householdName === undefined) this.settings.householdName = "";
         this.save();
     }
 
