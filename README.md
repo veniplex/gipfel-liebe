@@ -1,4 +1,4 @@
-# <img src="src/lib/assets/logo.svg" width="48" height="48" alt="Gipfel Liebe Logo" valign="middle"> Gipfel Liebe
+<img src="src/lib/assets/logo.svg" width="48" height="48" alt="Gipfel Liebe Logo" valign="middle">
 
 **Gipfel Liebe** is a central digital hub designed for families and couples to simplify their daily lives. Our mission is to provide helpful, intuitive tools that make organization and financial management effortless while keeping your data exactly where it belongs: with you.
 
