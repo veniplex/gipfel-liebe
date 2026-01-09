@@ -17,6 +17,7 @@
 	import IconSave from "~icons/mdi/content-save";
 	import IconUpload from "~icons/mdi/file-upload";
 	import IconReset from "~icons/mdi/refresh";
+	import { tick } from "svelte";
 
 	// Constants
 	const CURRENCY_OPTIONS = [
@@ -259,26 +260,47 @@
 		newPersonName = "";
 	}
 
-	function addIncome(personId: string) {
+	async function addIncome(personId: string) {
 		const state = getNewIncomeState(personId);
 		if (!state.name || state.amount <= 0) return;
 		summitSplitState.addIncome(state.name, state.amount, personId);
 		state.name = "";
 		state.amount = 0;
+
+		await tick(); // Wait for DOM update
+
+		// Focus back on the input field to type in a new income
+		const focusElement = document.getElementById(`addIncomeNameInput-${personId}`) as HTMLInputElement | null;
+		focusElement?.focus();
+		focusElement?.scrollIntoView({ behavior: "smooth", block: "center" });
 	}
 
-	function addExpense() {
+	async function addExpense() {
 		if (!newExpenseName || newExpenseAmount <= 0) return;
 		summitSplitState.addExpense(newExpenseName, newExpenseAmount);
 		newExpenseName = "";
 		newExpenseAmount = 0;
+
+		await tick(); // Wait for DOM update
+
+		// Focus back on the input field to type in a new income
+		const focusElement = document.getElementById("expenseNameInput") as HTMLInputElement | null;
+		focusElement?.focus();
+		focusElement?.scrollIntoView({ behavior: "smooth", block: "center" });
 	}
 
-	function addPot() {
+	async function addPot() {
 		if (!newPotName || newSavingAmount <= 0) return;
 		summitSplitState.addSavingsPot(newPotName, newSavingAmount);
 		newPotName = "";
 		newSavingAmount = 0;
+
+		await tick(); // Wait for DOM update
+
+		// Focus back on the input field to type in a new income
+		const focusElement = document.getElementById("savingPotNameInput") as HTMLInputElement | null;
+		focusElement?.focus();
+		focusElement?.scrollIntoView({ behavior: "smooth", block: "center" });
 	}
 
 	// Sections state is now handled by summitSplitState.ui.sections
@@ -580,8 +602,6 @@
 
 		<!-- Section content -->
 		<div class="collapse-content flex flex-col gap-2">
-			<h4>Add the monthly income of each household member.</h4>
-
 			{#if summitSplitState.people.length === 0}
 				<!-- If no people are added, show an alert -->
 				<div role="alert" class="alert alert-info">
@@ -589,6 +609,8 @@
 					<span>Please add members in the household settings first.</span>
 				</div>
 			{:else}
+				<h4>Add the monthly income of each household member.</h4>
+
 				<!-- If people are added, show the income of each person -->
 				{#each summitSplitState.people as person (person.id)}
 					{@const newIncome = getNewIncomeState(person.id)}
@@ -667,7 +689,7 @@
 
 										<!-- Total Row -->
 										<tr class="cursor-default bg-base-100/50 font-bold">
-											<td class="pl-[30px]">Total {person.name}</td>
+											<td class="pl-7.5">Total {person.name}</td>
 											<td class="text-right font-mono text-success">
 												{formatCurrency(summitSplitState.getPersonIncome(person.id))}
 											</td>
@@ -682,19 +704,20 @@
 										</tr>
 
 										<!-- Add Income Row -->
-										<tr class="group bg-base-100">
+										<tr class="bg-base-100">
 											<!-- Description -->
 											<td class="rounded-l-xl">
 												<input
+													id={`addIncomeNameInput-${person.id}`}
 													type="text"
 													placeholder="Add new income..."
 													class="input input-sm w-full border-base-content/20 outline-none focus:border-primary-content md:input-md"
 													bind:value={newIncome.name}
-													onchange={() => summitSplitState.save()}
+													onkeydown={(e) => e.key === "Enter" && addIncome(person.id)}
 												/>
 											</td>
 
-											<!-- Monthly Amount -->
+											<!-- Monthly Amount Input -->
 											<td>
 												<div class="group relative flex">
 													<div
@@ -744,26 +767,26 @@
 						</div>
 					{/if}
 				{/each}
-			{/if}
 
-			<!-- Total Income for this household -->
-			<div class="flex cursor-default items-start justify-end gap-4">
-				<p class="font-semibold opacity-75">Total Income:</p>
-				<div class="flex flex-col items-end">
-					<table>
-						<tbody class="">
-							<tr>
-								<td class="pr-2 text-right font-mono text-success">{formatCurrency(summitSplitState.totalIncome)}</td>
-								<td class="text-left opacity-75">/ month</td>
-							</tr>
-							<tr>
-								<td class="pr-2 text-right font-mono text-success">{formatCurrency(summitSplitState.totalIncome * 12)}</td>
-								<td class="text-left opacity-75">/ year</td>
-							</tr>
-						</tbody>
-					</table>
+				<!-- Total Income for this household -->
+				<div class="flex cursor-default items-start justify-end gap-4">
+					<p class="font-semibold opacity-75">Total Income:</p>
+					<div class="flex flex-col items-end">
+						<table>
+							<tbody class="">
+								<tr>
+									<td class="pr-2 text-right font-mono text-success">{formatCurrency(summitSplitState.totalIncome)}</td>
+									<td class="text-left opacity-75">/ month</td>
+								</tr>
+								<tr>
+									<td class="pr-2 text-right font-mono text-success">{formatCurrency(summitSplitState.totalIncome * 12)}</td>
+									<td class="text-left opacity-75">/ year</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	</div>
 
@@ -782,8 +805,6 @@
 			{/if}
 		</div>
 		<div class="collapse-content flex flex-col gap-4">
-			<h4>Shared monthly household expenses.</h4>
-
 			{#if summitSplitState.people.length === 0}
 				<!-- If no people are added, show an alert -->
 				<div role="alert" class="alert alert-info">
@@ -791,6 +812,8 @@
 					<span>Please add members in the household settings first.</span>
 				</div>
 			{:else}
+				<h4>Shared monthly household expenses.</h4>
+
 				<table class="table">
 					<thead>
 						<tr>
@@ -849,10 +872,11 @@
 						</tr>
 
 						<!-- Add Expense Row -->
-						<tr class="group bg-base-100 transition-colors">
+						<tr class="bg-base-100 transition-colors">
 							<!-- Description -->
 							<td class="rounded-l-xl">
 								<input
+									id="expenseNameInput"
 									type="text"
 									placeholder="Add new expense..."
 									class="input input-sm w-full input-ghost border-base-content/20 outline-none focus:border-primary-content md:input-md"
@@ -941,8 +965,6 @@
 			{/if}
 		</div>
 		<div class="collapse-content flex flex-col gap-4">
-			<h4>Allocate your remaining balance to different savings pots.</h4>
-
 			{#if summitSplitState.people.length === 0}
 				<!-- If no people are added, show an alert -->
 				<div role="alert" class="alert alert-info">
@@ -950,6 +972,8 @@
 					<span>Please add members in the household settings first.</span>
 				</div>
 			{:else}
+				<h4>Allocate your remaining balance to different savings pots.</h4>
+
 				<!-- Remaining Budget -->
 				<div class="flex cursor-default flex-col items-center justify-center gap-2 rounded-xl bg-info/20 p-4">
 					<p class="font-semibold opacity-75">Remaining Budget:</p>
@@ -1033,10 +1057,11 @@
 							<td class="col-span-4 border-none"></td>
 						</tr>
 
-						<!-- Add Pot Row -->
-						<tr class="group bg-base-100 transition-colors">
+						<!-- Add Saving Row -->
+						<tr class="bg-base-100 transition-colors">
 							<td class="rounded-l-xl">
 								<input
+									id="savingPotNameInput"
 									type="text"
 									placeholder="Add new saving..."
 									class="input input-sm w-full input-ghost border-base-content/20 outline-none focus:border-primary-content md:input-md"
@@ -1114,16 +1139,6 @@
 			</div>
 		</div>
 		<div class="flex flex-col gap-6">
-			<h4>
-				The total monthly costs
-				<div class="tooltip tooltip-error" data-tip="Expenses"><span class="px-1 font-mono text-error">{formatCurrency(summitSplitState.totalExpenses)}</span></div>
-				+
-				<div class="tooltip tooltip-info" data-tip="Savings"><span class="px-1 font-mono text-info">{formatCurrency(summitSplitState.totalSavings)}</span></div>
-				=
-				<div class="tooltip tooltip-primary" data-tip="Total"><span class="px-1 font-mono text-primary">{formatCurrency(summitSplitState.totalCosts)}</span></div>
-				are split based on the relative income of each person.
-			</h4>
-
 			<div class="grid grid-cols-1 gap-6">
 				<!-- List of shares (Table) -->
 				<div class="overflow-x-auto">
@@ -1133,6 +1148,16 @@
 							<span>Please add members in the household settings first.</span>
 						</div>
 					{:else}
+						<h4>
+							The total monthly costs
+							<div class="tooltip tooltip-error" data-tip="Expenses"><span class="px-1 font-mono text-error">{formatCurrency(summitSplitState.totalExpenses)}</span></div>
+							+
+							<div class="tooltip tooltip-info" data-tip="Savings"><span class="px-1 font-mono text-info">{formatCurrency(summitSplitState.totalSavings)}</span></div>
+							=
+							<div class="tooltip tooltip-primary" data-tip="Total"><span class="px-1 font-mono text-primary">{formatCurrency(summitSplitState.totalCosts)}</span></div>
+							are split based on the relative income of each person.
+						</h4>
+
 						<table class="table">
 							<colgroup span="1"></colgroup>
 							<colgroup span="3"></colgroup>

@@ -10,7 +10,7 @@
 	<div
 		class="group card h-28 justify-center text-primary-content transition-all card-lg sm:h-32 lg:h-36 xl:h-40 {props.placeholder
 			? 'border-3 border-dashed bg-base-300 opacity-50'
-			: 'border-secondary bg-primary hover:scale-105 hover:border-3'}"
+			: 'border-secondary bg-primary hover:scale-102 hover:border-3'}"
 	>
 		<div class="card-body">
 			<div class="flex h-full items-center gap-2">
